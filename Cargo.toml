@@ -1,0 +1,19 @@
+[package]
+name = "arwe"
+version = "0.1.0"
+edition = "2021"
+description = "Artificial Whale Eye: eyes for text-only LLMs (DeepSeek et al.) — matrix/ASCII rendering, OCR and vision-model layout analysis"
+license = "MIT"
+
+[dependencies]
+anyhow = "1"
+base64 = "0.22"
+clap = { version = "4", features = ["derive"] }
+image = { version = "0.25", default-features = false, features = ["png", "jpeg", "bmp", "gif"] }
+async-openai = { version = "0.41", features = ["chat-completion"] }
+tokio = { version = "1", features = ["rt", "net", "time", "io-util"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1", features = ["unbounded_depth"] }
+toml = "0.8"
+tempfile = "3"
+xcap = "0.9"

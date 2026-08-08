@@ -1,0 +1,5 @@
+/target
+/mutants.out
+/mutants.out.old
+/mutants-*.log
+/demo.png
