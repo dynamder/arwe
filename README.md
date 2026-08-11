@@ -22,7 +22,8 @@ cargo build --release
 
 ## Input
 
-Every subcommand needs exactly one of:
+The image subcommands (`matrix`, `ascii`, `convolve`, `layout`, `ocr`,
+`describe`, `explore`) need exactly one of:
 
 - `--input <path>` — PNG/JPEG/BMP/GIF file
 - `--base64 <str>` — base64-encoded image (data-URI prefixes accepted)
@@ -57,15 +58,16 @@ supported by the capture backend; the error message will say so.
 
 ## Global flags
 
-Available on `matrix`, `ascii`, `convolve` and `layout`:
+Shared by `matrix`, `ascii`, `convolve`, `layout`, `ocr` and `describe` (each
+command adds its own flags below):
 
 - `--width N` — area-average downscale to width N (keeps aspect ratio); the
   main token-control lever. Subtle color boundaries (e.g. a light sidebar on
   a white background) survive better at full resolution.
 - `--crop X,Y,W,H` — crop in original pixels, applied before `--width`.
 - `--sample X,Y` (repeatable) — print `x,y #rrggbb` for pixels in original
-  coordinates instead of the normal output. Coordinates are clamped to the
-  processed image.
+  coordinates instead of the normal output. Sample points outside the cropped
+  image are an error.
 - `--stride N` — take every Nth pixel (matrix/ascii/layout only; `convolve`'s
   `--stride` remains the convolution stride; the vision layout engine ignores
   it).
