@@ -4,6 +4,10 @@ version = "0.1.0"
 edition = "2021"
 description = "Artificial Whale Eye: eyes for text-only LLMs (DeepSeek et al.) — matrix/ASCII rendering, OCR and vision-model layout analysis"
 license = "MIT"
+repository = "https://github.com/dynamder/arwe"
+readme = "README.md"
+keywords = ["image", "ocr", "ascii", "llm", "screen-capture"]
+categories = ["command-line-utilities", "multimedia::images"]
 
 [dependencies]
 anyhow = "1"

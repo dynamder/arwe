@@ -1,5 +1,8 @@
 # arwe
 
+[![CI](https://github.com/dynamder/arwe/actions/workflows/ci.yml/badge.svg)](https://github.com/dynamder/arwe/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+
 **Arwe** = **Ar**tificial **Wh**ale **E**ye. The whale is a nod to DeepSeek,
 the text-only model family this tool is built for.
 
@@ -473,10 +476,10 @@ cargo run --example gen_demo      # writes demo.png
 cargo run -- matrix --input demo.png
 cargo run -- ascii --input demo.png
 cargo run -- convolve --input demo.png --preset edge --format ascii
-cargo run -- layout --input real_picture/*.png --format ascii
-cargo run -- layout --input real_picture/*.png --format html
-cargo run -- ocr --input real_picture/*.png --format json
-cargo run -- layout --input real_picture/*.png --engine vision
+cargo run -- layout --input demo.png --format ascii
+cargo run -- layout --input demo.png --format html
+cargo run -- ocr --input demo.png --format json
+cargo run -- layout --input demo.png --engine vision
 cargo run -- windows
 cargo run -- layout --screen --format ascii
 ```
@@ -499,3 +502,10 @@ cargo mutants --copy-target true --jobs 8 --exclude 'examples/*'
 The goal is to keep surviving mutants limited to semantically equivalent
 changes (e.g. arithmetic on odd-sized kernel padding that never changes the
 result).
+
+## Contributing
+
+Contributions are welcome! See [CONTRIBUTING.md](CONTRIBUTING.md) for the
+development workflow and checklist. Please read our
+[Code of Conduct](CODE_OF_CONDUCT.md) and report security issues privately via
+the [Security Policy](SECURITY.md).

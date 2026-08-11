@@ -1,0 +1,65 @@
+name: Bug report
+description: Report a bug in arwe
+title: "[Bug] "
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report an issue! Please fill in as much
+        detail as possible so it can be reproduced quickly.
+  - type: input
+    id: version
+    attributes:
+      label: arwe version
+      description: Output of `arwe --version` (or the commit/date you are running)
+      placeholder: "0.1.0"
+    validations:
+      required: true
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating system
+      description: Which OS were you running on?
+      options:
+        - Windows
+        - macOS
+        - Linux
+    validations:
+      required: true
+  - type: textarea
+    id: command
+    attributes:
+      label: Command used
+      description: The exact arwe command you ran
+      render: shell
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+      description: Paste the full output or error message
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1.
+        2.
+        3.
+  - type: textarea
+    id: debug
+    attributes:
+      label: Debug information
+      description: >-
+        If relevant to vision/OCR issues, include ARWE_DEBUG_VISION=1 output,
+        config profile names, Tesseract version, and image dimensions.
