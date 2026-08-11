@@ -4,6 +4,9 @@ use std::process::{Command, Stdio};
 use base64::engine::general_purpose::STANDARD;
 use base64::Engine as _;
 
+mod common;
+use common::write_mock_tesseract;
+
 fn bin() -> Command {
     Command::new(env!("CARGO_BIN_EXE_arwe"))
 }
@@ -106,14 +109,11 @@ fn explore_invalid_command_does_not_kill_session() {
 fn explore_ocr_uses_mock_tesseract() {
     let tsv = "level\tpage_num\tblock_num\tpar_num\tline_num\tword_num\tleft\ttop\twidth\theight\tconf\ttext\n5\t1\t1\t1\t1\t1\t10\t20\t100\t30\t90.5\tHello\n5\t1\t1\t1\t1\t2\t120\t20\t80\t30\t85.2\tworld";
     let dir = tempfile::tempdir().unwrap();
-    let bat = dir.path().join("tess.bat");
-    let lines: Vec<String> = tsv.lines().map(|l| format!("echo {}", l)).collect();
-    let content = format!("@echo off\r\n{}\r\n", lines.join("\r\n"));
-    std::fs::write(&bat, content).unwrap();
+    let mock = write_mock_tesseract(&dir, tsv);
     let b64 = grad4x4();
     let mut child = bin()
         .args(["explore", "--base64", &b64])
-        .env("ARWE_TESSERACT_BIN", &bat)
+        .env("ARWE_TESSERACT_BIN", &mock)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())

@@ -3,6 +3,9 @@ use std::process::Command;
 use base64::engine::general_purpose::STANDARD;
 use base64::Engine as _;
 
+mod common;
+use common::write_mock_tesseract;
+
 fn bin() -> Command {
     Command::new(env!("CARGO_BIN_EXE_arwe"))
 }
@@ -30,14 +33,6 @@ const TSV: &str =
 5\t1\t1\t1\t1\t2\t120\t20\t80\t30\t85.2\tworld
 5\t1\t1\t2\t1\t1\t5\t80\t200\t25\t95\tSecond
 5\t1\t1\t2\t1\t2\t150\t80\t60\t25\t88\tline";
-
-fn write_mock_tesseract(dir: &tempfile::TempDir, tsv: &str) -> std::path::PathBuf {
-    let bat = dir.path().join("tess.bat");
-    let lines: Vec<String> = tsv.lines().map(|l| format!("echo {}", l)).collect();
-    let content = format!("@echo off\r\n{}\r\n", lines.join("\r\n"));
-    std::fs::write(&bat, content).unwrap();
-    bat
-}
 
 #[test]
 fn ocr_missing_binary_fails_friendly() {
