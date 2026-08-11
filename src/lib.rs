@@ -1,7 +1,9 @@
+pub mod capture;
 pub mod cli;
 pub mod config;
-pub mod capture;
 pub mod conv;
+pub mod describe;
+pub mod explore;
 pub mod html;
 pub mod image_io;
 pub mod kernels;

@@ -6,6 +6,8 @@ use clap::{Args, ValueEnum};
 use crate::capture;
 use crate::config;
 use crate::conv;
+use crate::describe;
+use crate::explore;
 use crate::html;
 use crate::image_io::{self, InputSource};
 use crate::kernels::{self, Kernel};
@@ -91,13 +93,10 @@ fn emit_samples(args: &InputArgs, proc: &Processed) -> Result<bool> {
         return Ok(false);
     }
     for (x, y) in &args.sample {
-        let (px, py) = proc.to_processed(*x, *y).ok_or_else(|| {
-            anyhow!("sample point ({},{}) is outside the cropped image", x, y)
-        })?;
-        let c = proc
-            .image
-            .pixel(px, py)
-            .expect("mapped pixel is in bounds");
+        let (px, py) = proc
+            .to_processed(*x, *y)
+            .ok_or_else(|| anyhow!("sample point ({},{}) is outside the cropped image", x, y))?;
+        let c = proc.image.pixel(px, py).expect("mapped pixel is in bounds");
         println!("{},{} #{:02x}{:02x}{:02x}", x, y, c[0], c[1], c[2]);
     }
     Ok(true)
@@ -195,10 +194,10 @@ pub struct LayoutArgs {
     #[command(flatten)]
     pub input: InputArgs,
 
-    /// Layout analysis engine: deterministic grid decomposition (local) or a
-    /// vision model (vision).
-    #[arg(long, value_enum, default_value_t = LayoutEngine::Local)]
-    pub engine: LayoutEngine,
+    /// Layout analysis engine: vision model, or the deterministic
+    /// convolution+OCR backend (alias: local).
+    #[arg(long, value_enum, default_value_t = Engine::ConvOcr)]
+    pub engine: Engine,
 
     /// Run local OCR (Tesseract) and attach recognized text to text nodes
     /// (local engine only).
@@ -315,11 +314,33 @@ pub struct OcrArgs {
     #[command(flatten)]
     pub input: InputArgs,
 
-    /// OCR language(s) for Tesseract, e.g. eng, chi_sim, eng+chi_sim.
+    /// OCR engine: vision model, or the deterministic convolution+OCR backend
+    /// (alias: local).
+    #[arg(long, value_enum, default_value_t = Engine::ConvOcr)]
+    pub engine: Engine,
+
+    /// Vision profile from the config file (--engine vision).
+    #[arg(long)]
+    pub profile: Option<String>,
+
+    /// Vision model ID (--engine vision; falls back to profile/env/default).
+    #[arg(long)]
+    pub model: Option<String>,
+
+    /// OpenAI-compatible API base URL (--engine vision).
+    #[arg(long)]
+    pub base_url: Option<String>,
+
+    /// OpenAI API key (--engine vision).
+    #[arg(long)]
+    pub api_key: Option<String>,
+
+    /// OCR language(s) for Tesseract, e.g. eng, chi_sim, eng+chi_sim
+    /// (convocr only).
     #[arg(long, default_value = "eng")]
     pub lang: String,
 
-    /// Tesseract page segmentation mode 0-13.
+    /// Tesseract page segmentation mode 0-13 (convocr only).
     #[arg(long, default_value_t = 3)]
     pub psm: u32,
 
@@ -347,12 +368,17 @@ pub enum LayoutFormat {
     Ascii,
     Both,
     Html,
+    Describe,
 }
 
 #[derive(ValueEnum, Clone, Copy, PartialEq, Eq)]
-pub enum LayoutEngine {
-    Local,
+pub enum Engine {
+    /// Vision model backend (requires a configured provider).
     Vision,
+    /// Deterministic backend: convolution kernels + local OCR (+ recursive
+    /// grid decomposition for layout).
+    #[value(name = "convocr", alias = "local")]
+    ConvOcr,
 }
 
 #[derive(ValueEnum, Clone, Copy)]
@@ -434,12 +460,12 @@ pub async fn run_layout(a: &LayoutArgs) -> Result<()> {
     if a.psm > 13 {
         bail!("--psm must be between 0 and 13");
     }
-    if a.ocr && a.engine == LayoutEngine::Vision {
-        bail!("--ocr is only available with --engine local");
+    if a.ocr && a.engine == Engine::Vision {
+        bail!("--ocr is only available with --engine convocr");
     }
     // The vision engine receives the image at full stride; --stride is a
     // token-control lever for the local engine only.
-    let stride = if a.engine == LayoutEngine::Vision {
+    let stride = if a.engine == Engine::Vision {
         1
     } else {
         a.stride
@@ -449,18 +475,21 @@ pub async fn run_layout(a: &LayoutArgs) -> Result<()> {
         return Ok(());
     }
     let mut format = a.format;
-    if a.engine == LayoutEngine::Vision && format == LayoutFormat::Both {
+    if a.engine == Engine::Vision && format == LayoutFormat::Both {
         format = LayoutFormat::Html;
     }
-    if a.engine == LayoutEngine::Vision && format == LayoutFormat::Ascii {
-        bail!("--format ascii is only available with --engine local");
+    if a.engine == Engine::Vision && format == LayoutFormat::Ascii {
+        bail!("--format ascii is only available with --engine convocr");
+    }
+    if a.engine == Engine::ConvOcr && format == LayoutFormat::Describe {
+        bail!("--format describe is only available with --engine vision");
     }
     // Validate kernel flags up front even when the engine ignores the kernel,
     // so conflicts or unknown presets never fail silently.
     let kernel = a.kernel()?;
 
     match a.engine {
-        LayoutEngine::Vision => {
+        Engine::Vision => {
             let env = |k: &str| std::env::var(k).ok().filter(|s| !s.is_empty());
             let vision_cfg = config::resolve_vision(
                 a.model.as_deref(),
@@ -477,15 +506,19 @@ pub async fn run_layout(a: &LayoutArgs) -> Result<()> {
                 )
             })?;
             let data_url = ocr::png_data_url(&proc.image)?;
-            let json_mode = format == LayoutFormat::Json;
+            let output = match format {
+                LayoutFormat::Html => vision::VisionOutput::Html,
+                LayoutFormat::Json => vision::VisionOutput::Json,
+                LayoutFormat::Describe => vision::VisionOutput::Describe,
+                _ => unreachable!("format validated above"),
+            };
             let raw = vision::analyze(
                 &data_url,
-                proc.image.width,
-                proc.image.height,
+                &proc,
                 &vision_cfg.model,
                 &vision_cfg.base_url,
                 &api_key,
-                json_mode,
+                output,
             )
             .await?;
             match format {
@@ -498,11 +531,12 @@ pub async fn run_layout(a: &LayoutArgs) -> Result<()> {
                         e
                     ),
                 },
+                LayoutFormat::Describe => println!("{}", raw),
                 _ => unreachable!("format validated above"),
             }
             Ok(())
         }
-        LayoutEngine::Local => {
+        Engine::ConvOcr => {
             let image = match kernel {
                 Some(k) => {
                     let data = if k.channels == 1 {
@@ -528,6 +562,7 @@ pub async fn run_layout(a: &LayoutArgs) -> Result<()> {
                     println!();
                     print!("{}", layout::ascii_map(&proc, &result, a.ansi));
                 }
+                LayoutFormat::Describe => unreachable!("validated above"),
             }
             Ok(())
         }
@@ -601,7 +636,7 @@ fn ocr_lines_for_layout(a: &LayoutArgs, proc: &Processed) -> Result<Vec<ocr::Ocr
     Ok(mapped)
 }
 
-pub fn run_ocr(a: &OcrArgs) -> Result<()> {
+pub async fn run_ocr(a: &OcrArgs) -> Result<()> {
     if a.psm > 13 {
         bail!("--psm must be between 0 and 13");
     }
@@ -609,12 +644,175 @@ pub fn run_ocr(a: &OcrArgs) -> Result<()> {
     if emit_samples(&a.input, &proc)? {
         return Ok(());
     }
-    let lines = ocr::recognize(&proc.image, &a.lang, a.psm)?;
-    match a.format {
-        OcrFormat::Plain => print!("{}", ocr::render_plain(&lines)),
-        OcrFormat::Json => println!("{}", ocr::render_json(&proc, &lines)),
+    match a.engine {
+        Engine::ConvOcr => {
+            let lines = ocr::recognize(&proc.image, &a.lang, a.psm)?;
+            match a.format {
+                OcrFormat::Plain => print!("{}", ocr::render_plain(&lines)),
+                OcrFormat::Json => println!("{}", ocr::render_json(&proc, &lines)),
+            }
+        }
+        Engine::Vision => {
+            let env = |k: &str| std::env::var(k).ok().filter(|s| !s.is_empty());
+            let vision_cfg = config::resolve_vision(
+                a.model.as_deref(),
+                a.base_url.as_deref(),
+                a.api_key.as_deref(),
+                a.profile.as_deref(),
+                env,
+            )?;
+            let api_key = vision_cfg.api_key.clone().ok_or_else(|| {
+                anyhow!(
+                    "an API key is required for --engine vision (pass --api-key, set \
+                     OPENAI_API_KEY, or add an api_key to the selected profile in the config \
+                     file; see `arwe config`)"
+                )
+            })?;
+            let data_url = ocr::png_data_url(&proc.image)?;
+            let raw = vision::analyze(
+                &data_url,
+                &proc,
+                &vision_cfg.model,
+                &vision_cfg.base_url,
+                &api_key,
+                vision::VisionOutput::Ocr,
+            )
+            .await?;
+            let lines = vision::finalize_ocr(&raw)?;
+            match a.format {
+                OcrFormat::Plain => print!("{}", ocr::render_plain(&lines)),
+                OcrFormat::Json => println!("{}", ocr::render_json_vision(&proc, &lines)),
+            }
+        }
     }
     Ok(())
+}
+
+#[derive(Args)]
+pub struct DescribeArgs {
+    #[command(flatten)]
+    pub input: InputArgs,
+
+    /// Description engine: vision model, or a deterministic digest built from
+    /// the box tree + OCR text (alias: local).
+    #[arg(long, value_enum, default_value_t = Engine::Vision)]
+    pub engine: Engine,
+
+    /// Vision profile from the config file (--engine vision).
+    #[arg(long)]
+    pub profile: Option<String>,
+
+    /// Vision model ID (--engine vision; falls back to profile/env/default).
+    #[arg(long)]
+    pub model: Option<String>,
+
+    /// OpenAI-compatible API base URL (--engine vision).
+    #[arg(long)]
+    pub base_url: Option<String>,
+
+    /// OpenAI API key (--engine vision).
+    #[arg(long)]
+    pub api_key: Option<String>,
+
+    /// OCR language(s) for Tesseract (convocr digest).
+    #[arg(long, default_value = "eng")]
+    pub lang: String,
+
+    /// Tesseract page segmentation mode 0-13 (convocr digest).
+    #[arg(long, default_value_t = 3)]
+    pub psm: u32,
+}
+
+pub async fn run_describe(a: &DescribeArgs) -> Result<()> {
+    if a.psm > 13 {
+        bail!("--psm must be between 0 and 13");
+    }
+    let proc = load_processed(&a.input, 1)?;
+    if emit_samples(&a.input, &proc)? {
+        return Ok(());
+    }
+    match a.engine {
+        Engine::Vision => {
+            let env = |k: &str| std::env::var(k).ok().filter(|s| !s.is_empty());
+            let vision_cfg = config::resolve_vision(
+                a.model.as_deref(),
+                a.base_url.as_deref(),
+                a.api_key.as_deref(),
+                a.profile.as_deref(),
+                env,
+            )?;
+            let api_key = vision_cfg.api_key.clone().ok_or_else(|| {
+                anyhow!(
+                    "an API key is required for --engine vision (pass --api-key, set \
+                     OPENAI_API_KEY, or add an api_key to the selected profile in the config \
+                     file; see `arwe config`)"
+                )
+            })?;
+            let data_url = ocr::png_data_url(&proc.image)?;
+            let raw = vision::analyze(
+                &data_url,
+                &proc,
+                &vision_cfg.model,
+                &vision_cfg.base_url,
+                &api_key,
+                vision::VisionOutput::Describe,
+            )
+            .await?;
+            println!("{}", raw);
+        }
+        Engine::ConvOcr => {
+            let result = layout::analyze(
+                &proc.image,
+                layout::MAX_BLOCKS_DEFAULT,
+                layout::MAX_DEPTH_DEFAULT,
+            );
+            let lines = ocr::recognize(&proc.image, &a.lang, a.psm)?;
+            println!("{}", describe::digest(&proc, &result, &lines));
+        }
+    }
+    Ok(())
+}
+
+#[derive(Args)]
+pub struct ExploreArgs {
+    #[command(flatten)]
+    pub input: InputArgs,
+
+    /// Default engine for the describe/ask primitives: vision model, or the
+    /// deterministic convolution+OCR backend (alias: local).
+    #[arg(long, value_enum, default_value_t = Engine::ConvOcr)]
+    pub engine: Engine,
+
+    /// Vision profile from the config file.
+    #[arg(long)]
+    pub profile: Option<String>,
+
+    /// Vision model ID (falls back to profile/env/default).
+    #[arg(long)]
+    pub model: Option<String>,
+
+    /// OpenAI-compatible API base URL.
+    #[arg(long)]
+    pub base_url: Option<String>,
+
+    /// OpenAI API key.
+    #[arg(long)]
+    pub api_key: Option<String>,
+
+    /// Default OCR language(s) for Tesseract (convocr primitives).
+    #[arg(long, default_value = "eng")]
+    pub lang: String,
+
+    /// Default Tesseract page segmentation mode 0-13.
+    #[arg(long, default_value_t = 3)]
+    pub psm: u32,
+}
+
+pub fn run_explore(a: &ExploreArgs) -> Result<()> {
+    let rt = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()?;
+    rt.block_on(explore::run(a))
 }
 
 pub fn run_presets(a: &PresetsArgs) -> Result<()> {

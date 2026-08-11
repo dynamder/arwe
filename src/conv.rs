@@ -164,8 +164,7 @@ pub fn convolve_cross(img: &RgbImage, kernel: &Kernel, stride: usize) -> Result<
                         if ix < 0 || ix >= img.width as isize {
                             continue;
                         }
-                        acc += kernel.values[c * kh * kw + ky * kw + kx]
-                            * plane[row + ix as usize];
+                        acc += kernel.values[c * kh * kw + ky * kw + kx] * plane[row + ix as usize];
                     }
                 }
             }

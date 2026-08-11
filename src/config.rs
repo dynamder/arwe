@@ -189,10 +189,7 @@ base_url = "http://127.0.0.1:8000/v1"
         .unwrap();
         assert_eq!(cfg.default_profile.as_deref(), Some("local"));
         assert_eq!(cfg.profiles.len(), 2);
-        assert_eq!(
-            cfg.profiles["openai"].api_key.as_deref(),
-            Some("sk-123")
-        );
+        assert_eq!(cfg.profiles["openai"].api_key.as_deref(), Some("sk-123"));
         assert_eq!(cfg.profiles["local"].model, None);
     }
 

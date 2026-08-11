@@ -90,15 +90,7 @@ pub fn analyze(img: &RgbImage, max_blocks: usize, max_depth: usize) -> LayoutRes
         h: img.height,
     };
     let mut budget = structure_budget;
-    let mut root = split(
-        img,
-        &mask,
-        rect,
-        0,
-        max_depth,
-        &mut budget,
-        &mut truncated,
-    );
+    let mut root = split(img, &mask, rect, 0, max_depth, &mut budget, &mut truncated);
     for tb in text_boxes {
         attach(&mut root, tb);
     }
@@ -349,11 +341,7 @@ fn bg_color(img: &RgbImage, x: usize, y: usize, w: usize, h: usize) -> [u8; 3] {
             b.push(p[2] as f32);
         }
     }
-    [
-        median(&r) as u8,
-        median(&g) as u8,
-        median(&b) as u8,
-    ]
+    [median(&r) as u8, median(&g) as u8, median(&b) as u8]
 }
 
 fn median(v: &[f32]) -> f32 {
@@ -390,8 +378,7 @@ fn split(
     } else {
         Axis::Cols
     };
-    let cut = best_cut(img, mask, rect, axis)
-        .or_else(|| best_cut(img, mask, rect, other(axis)));
+    let cut = best_cut(img, mask, rect, axis).or_else(|| best_cut(img, mask, rect, other(axis)));
     let Some((used_axis, pos)) = cut else {
         return make_leaf(rect, color, budget, truncated);
     };
@@ -515,13 +502,7 @@ fn best_cut(img: &RgbImage, mask: &[bool], rect: Rect, axis: Axis) -> Option<(Ax
     best.map(|(pos, _)| (axis, pos))
 }
 
-fn boundary_strength(
-    img: &RgbImage,
-    mask: &[bool],
-    rect: Rect,
-    pos: usize,
-    rows: bool,
-) -> f64 {
+fn boundary_strength(img: &RgbImage, mask: &[bool], rect: Rect, pos: usize, rows: bool) -> f64 {
     let mut hits = 0usize;
     let total = if rows { rect.w } else { rect.h };
     if rows {
@@ -620,10 +601,7 @@ fn attach(node: &mut Node, tb: Node) {
 }
 
 fn contains(a: &Node, b: &Node) -> bool {
-    a.x <= b.x
-        && a.y <= b.y
-        && b.x + b.w <= a.x + a.w
-        && b.y + b.h <= a.y + a.h
+    a.x <= b.x && a.y <= b.y && b.x + b.w <= a.x + a.w && b.y + b.h <= a.y + a.h
 }
 
 fn hex(c: [u8; 3]) -> String {
@@ -798,7 +776,16 @@ mod unit {
         let mask = vec![true; 4];
         // All pixels masked: fall back to the median of all pixels.
         assert_eq!(
-            region_color(&img, &mask, Rect { x: 0, y: 0, w: 2, h: 2 }),
+            region_color(
+                &img,
+                &mask,
+                Rect {
+                    x: 0,
+                    y: 0,
+                    w: 2,
+                    h: 2
+                }
+            ),
             [0, 0, 0]
         );
         // Mixed pixels: median, ignoring masked ones.
@@ -807,7 +794,16 @@ mod unit {
         let img = RgbImage::new(2, 2, pixels).unwrap();
         let mask = vec![true, false, false, false];
         assert_eq!(
-            region_color(&img, &mask, Rect { x: 0, y: 0, w: 2, h: 2 }),
+            region_color(
+                &img,
+                &mask,
+                Rect {
+                    x: 0,
+                    y: 0,
+                    w: 2,
+                    h: 2
+                }
+            ),
             [255, 255, 255]
         );
     }
@@ -815,7 +811,12 @@ mod unit {
     #[test]
     fn boundary_strength_ignores_masked_pixels() {
         let img = im(4, 4, [0, 0, 0]);
-        let rect = Rect { x: 0, y: 0, w: 4, h: 4 };
+        let rect = Rect {
+            x: 0,
+            y: 0,
+            w: 4,
+            h: 4,
+        };
         let mut mask = vec![false; 16];
         // Mask the entire boundary row pair.
         for x in 0..4 {

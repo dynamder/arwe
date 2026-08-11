@@ -15,7 +15,10 @@ fn png_base64(w: u32, h: u32) -> String {
     let buf = image::RgbImage::from_raw(w, h, flat).unwrap();
     let mut bytes = Vec::new();
     image::DynamicImage::ImageRgb8(buf)
-        .write_to(&mut std::io::Cursor::new(&mut bytes), image::ImageFormat::Png)
+        .write_to(
+            &mut std::io::Cursor::new(&mut bytes),
+            image::ImageFormat::Png,
+        )
         .unwrap();
     STANDARD.encode(&bytes)
 }
@@ -114,7 +117,11 @@ fn vision_layout_html_remaps_coordinates() {
         "stderr: {}",
         String::from_utf8_lossy(&out.stderr)
     );
-    assert!(!stdout.contains("```"), "fences must be stripped: {}", stdout);
+    assert!(
+        !stdout.contains("```"),
+        "fences must be stripped: {}",
+        stdout
+    );
     assert!(
         stdout.contains("data-x=\"0\" data-y=\"0\" data-w=\"4\" data-h=\"4\""),
         "root box not remapped: {}",
@@ -136,7 +143,8 @@ fn vision_layout_html_remaps_coordinates() {
 #[test]
 fn vision_layout_defaults_to_html() {
     let b64 = png_base64(2, 2);
-    let content = "<div data-x=\"0\" data-y=\"0\" data-w=\"2\" data-h=\"2\" data-color=\"#000000\"></div>";
+    let content =
+        "<div data-x=\"0\" data-y=\"0\" data-w=\"2\" data-h=\"2\" data-color=\"#000000\"></div>";
     let (url, handle) = spawn_mock(chat_response(content));
     let out = bin()
         .args([
@@ -209,6 +217,244 @@ fn vision_layout_json_remaps_coordinates() {
 }
 
 #[test]
+fn vision_layout_html_keeps_text_and_styles() {
+    let b64 = png_base64(4, 4);
+    let content = "```html\n<div data-x=\"0\" data-y=\"0\" data-w=\"2\" data-h=\"2\" data-color=\"#000000\" data-direction=\"row\" style=\"display:flex; gap:1px\">\n  <div data-x=\"0\" data-y=\"0\" data-w=\"1\" data-h=\"2\" data-color=\"#ff0000\" style=\"flex:1\"></div>\n  <span data-x=\"1\" data-y=\"0\" data-w=\"1\" data-h=\"2\" data-color=\"#0000ff\" style=\"font-size:7px\">OK</span>\n</div>\n```";
+    let (url, handle) = spawn_mock(chat_response(content));
+    let out = bin()
+        .args([
+            "layout",
+            "--engine",
+            "vision",
+            "--base-url",
+            &url,
+            "--api-key",
+            "test",
+            "--format",
+            "html",
+            "--base64",
+            &b64,
+            "--width",
+            "2",
+        ])
+        .env("NO_PROXY", "127.0.0.1,localhost")
+        .env("no_proxy", "127.0.0.1,localhost")
+        .output()
+        .unwrap();
+    let stdout = String::from_utf8_lossy(&out.stdout).to_string();
+    assert!(
+        out.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    assert!(
+        stdout.contains("style=\"display:flex; gap:2px\""),
+        "style must be preserved and px scaled: {}",
+        stdout
+    );
+    assert!(
+        stdout.contains("style=\"flex:1\""),
+        "non-px style values must be untouched: {}",
+        stdout
+    );
+    assert!(
+        stdout.contains("style=\"font-size:14px\""),
+        "font-size must scale: {}",
+        stdout
+    );
+    assert!(
+        stdout.contains(">OK</span>"),
+        "recognized text must be kept in the span body: {}",
+        stdout
+    );
+    assert!(
+        stdout.contains("data-x=\"2\" data-y=\"0\" data-w=\"2\" data-h=\"4\""),
+        "span box not remapped: {}",
+        stdout
+    );
+    handle.join().unwrap();
+}
+
+#[test]
+fn vision_layout_normalizes_foreign_tags_and_keeps_markers() {
+    let b64 = png_base64(4, 4);
+    let content = "<div data-x=\"0\" data-y=\"0\" data-w=\"2\" data-h=\"2\" data-color=\"#000000\">\n  <input data-x=\"0\" data-y=\"0\" data-w=\"1\" data-h=\"1\" data-color=\"#ffffff\" style=\"font-size:7px\"/>\n  <span data-x=\"1\" data-y=\"0\" data-w=\"1\" data-h=\"1\" data-color=\"#ffffff\">[unreadable]</span>\n</div>";
+    let (url, handle) = spawn_mock(chat_response(content));
+    let out = bin()
+        .args([
+            "layout",
+            "--engine",
+            "vision",
+            "--base-url",
+            &url,
+            "--api-key",
+            "test",
+            "--format",
+            "html",
+            "--base64",
+            &b64,
+            "--width",
+            "2",
+        ])
+        .env("NO_PROXY", "127.0.0.1,localhost")
+        .env("no_proxy", "127.0.0.1,localhost")
+        .output()
+        .unwrap();
+    let stdout = String::from_utf8_lossy(&out.stdout).to_string();
+    assert!(
+        out.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    assert!(
+        stdout.contains("<div data-x=\"0\" data-y=\"0\" data-w=\"2\" data-h=\"2\" data-color=\"#ffffff\" style=\"font-size:14px\" />"),
+        "input must be normalized to a remapped div: {}",
+        stdout
+    );
+    assert!(
+        !stdout.contains("<input"),
+        "no input tag may remain: {}",
+        stdout
+    );
+    assert!(
+        stdout.contains(">[unreadable]</span>"),
+        "unreadable marker must survive: {}",
+        stdout
+    );
+    handle.join().unwrap();
+}
+
+#[test]
+fn vision_layout_full_document_passes_through_with_description() {
+    let b64 = png_base64(2, 2);
+    let content = "```html\n<!DOCTYPE html>\n<html lang=\"zh-CN\">\n<head>\n<style>\n  body { background:#000; }\n</style>\n</head>\n<body>\n  <div class=\"app\">你好</div>\n</body>\n</html>\n\nThis is a dark-themed app window with a single greeting.\n```";
+    let (url, handle) = spawn_mock(chat_response(content));
+    let out = bin()
+        .args([
+            "layout",
+            "--engine",
+            "vision",
+            "--base-url",
+            &url,
+            "--api-key",
+            "test",
+            "--format",
+            "html",
+            "--base64",
+            &b64,
+        ])
+        .env("NO_PROXY", "127.0.0.1,localhost")
+        .env("no_proxy", "127.0.0.1,localhost")
+        .output()
+        .unwrap();
+    let stdout = String::from_utf8_lossy(&out.stdout).to_string();
+    assert!(
+        out.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    assert!(
+        !stdout.contains("```"),
+        "fences must be stripped: {}",
+        stdout
+    );
+    assert!(stdout.contains("<!DOCTYPE html>"), "document must survive");
+    assert!(stdout.contains("<style>"), "css must survive");
+    assert!(
+        stdout.contains("<div class=\"app\">你好</div>"),
+        "document body must survive: {}",
+        stdout
+    );
+    assert!(
+        stdout.contains("This is a dark-themed app window with a single greeting."),
+        "trailing natural-language description must survive: {}",
+        stdout
+    );
+    handle.join().unwrap();
+}
+
+#[test]
+fn vision_layout_json_keeps_recognized_text() {
+    let b64 = png_base64(4, 4);
+    let content = "{\"width\":2,\"height\":2,\"root\":{\"x\":0,\"y\":0,\"w\":2,\"h\":2,\"color\":\"#000000\",\"kind\":\"group\",\"direction\":\"row\",\"children\":[{\"x\":0,\"y\":0,\"w\":1,\"h\":2,\"color\":\"#ff0000\",\"kind\":\"block\",\"children\":[]},{\"x\":1,\"y\":0,\"w\":1,\"h\":2,\"color\":\"#0000ff\",\"kind\":\"text\",\"density\":0.7,\"text\":\"Login\",\"children\":[]}]}}";
+    let (url, handle) = spawn_mock(chat_response(content));
+    let out = bin()
+        .args([
+            "layout",
+            "--engine",
+            "vision",
+            "--base-url",
+            &url,
+            "--api-key",
+            "test",
+            "--format",
+            "json",
+            "--base64",
+            &b64,
+            "--width",
+            "2",
+        ])
+        .env("NO_PROXY", "127.0.0.1,localhost")
+        .env("no_proxy", "127.0.0.1,localhost")
+        .output()
+        .unwrap();
+    let stdout = String::from_utf8_lossy(&out.stdout).to_string();
+    assert!(
+        out.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let v: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
+    let kids = v["root"]["children"].as_array().unwrap();
+    assert_eq!(kids[1]["text"], "Login");
+    assert_eq!(kids[1]["x"], 2);
+    assert_eq!(kids[1]["w"], 2);
+    handle.join().unwrap();
+}
+
+#[test]
+fn vision_layout_describe_prints_plain_text() {
+    let b64 = png_base64(2, 2);
+    let content = "```text\nA centered login card with a header, two input fields, and a primary button.\n```";
+    let (url, handle) = spawn_mock(chat_response(content));
+    let out = bin()
+        .args([
+            "layout",
+            "--engine",
+            "vision",
+            "--base-url",
+            &url,
+            "--api-key",
+            "test",
+            "--format",
+            "describe",
+            "--base64",
+            &b64,
+        ])
+        .env("NO_PROXY", "127.0.0.1,localhost")
+        .env("no_proxy", "127.0.0.1,localhost")
+        .output()
+        .unwrap();
+    let stdout = String::from_utf8_lossy(&out.stdout).to_string();
+    assert!(
+        out.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    assert!(
+        !stdout.contains("```"),
+        "fences must be stripped: {}",
+        stdout
+    );
+    assert!(
+        stdout.contains("A centered login card with a header"),
+        "describe answer must be printed: {}",
+        stdout
+    );
+    handle.join().unwrap();
+}
+
+#[test]
 fn vision_mode_rejects_local_only_options() {
     let b64 = png_base64(2, 2);
     let url = "http://127.0.0.1:1/v1";
@@ -248,6 +494,15 @@ fn vision_mode_rejects_local_only_options() {
         .unwrap();
     assert!(!out.status.success());
     assert!(String::from_utf8_lossy(&out.stderr).contains("--ocr"));
+
+    let out = bin()
+        .args([
+            "layout", "--engine", "local", "--format", "describe", "--base64", &b64,
+        ])
+        .output()
+        .unwrap();
+    assert!(!out.status.success());
+    assert!(String::from_utf8_lossy(&out.stderr).contains("describe"));
 }
 
 #[test]
@@ -270,9 +525,162 @@ fn vision_mode_requires_api_key() {
 }
 
 #[test]
+fn vision_ocr_plain_from_mock() {
+    let b64 = png_base64(4, 4);
+    let content = "{\"width\":2,\"height\":2,\"lines\":[{\"x\":0,\"y\":0,\"w\":2,\"h\":1,\"text\":\"Login\"},{\"x\":0,\"y\":1,\"w\":2,\"h\":1,\"text\":\"[unreadable]\"}]}";
+    let (url, handle) = spawn_mock(chat_response(content));
+    let out = bin()
+        .args([
+            "ocr",
+            "--engine",
+            "vision",
+            "--base-url",
+            &url,
+            "--api-key",
+            "test",
+            "--format",
+            "plain",
+            "--base64",
+            &b64,
+            "--width",
+            "2",
+        ])
+        .env("NO_PROXY", "127.0.0.1,localhost")
+        .env("no_proxy", "127.0.0.1,localhost")
+        .output()
+        .unwrap();
+    let stdout = String::from_utf8_lossy(&out.stdout).to_string();
+    assert!(
+        out.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    assert_eq!(stdout, "Login\n[unreadable]\n");
+    handle.join().unwrap();
+}
+
+#[test]
+fn vision_ocr_json_from_mock() {
+    let b64 = png_base64(4, 4);
+    let content = "{\"width\":2,\"height\":2,\"lines\":[{\"x\":0,\"y\":0,\"w\":2,\"h\":1,\"text\":\"Login\"}]}";
+    let (url, handle) = spawn_mock(chat_response(content));
+    let out = bin()
+        .args([
+            "ocr",
+            "--engine",
+            "vision",
+            "--base-url",
+            &url,
+            "--api-key",
+            "test",
+            "--format",
+            "json",
+            "--base64",
+            &b64,
+            "--width",
+            "2",
+        ])
+        .env("NO_PROXY", "127.0.0.1,localhost")
+        .env("no_proxy", "127.0.0.1,localhost")
+        .output()
+        .unwrap();
+    let stdout = String::from_utf8_lossy(&out.stdout).to_string();
+    assert!(
+        out.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let v: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
+    assert_eq!(v["width"], 4);
+    assert_eq!(v["height"], 4);
+    assert_eq!(v["lines"][0]["x"], 0);
+    assert_eq!(v["lines"][0]["w"], 4);
+    assert_eq!(v["lines"][0]["text"], "Login");
+    assert!(v["lines"][0].get("conf").is_none());
+    handle.join().unwrap();
+}
+
+#[test]
+fn explore_ask_returns_vision_answer() {
+    let b64 = png_base64(2, 2);
+    let content = "```text\nThe button is blue.\n```";
+    let (url, handle) = spawn_mock(chat_response(content));
+    let mut child = bin()
+        .args([
+            "explore",
+            "--engine",
+            "vision",
+            "--base-url",
+            &url,
+            "--api-key",
+            "test",
+            "--base64",
+            &b64,
+        ])
+        .env("NO_PROXY", "127.0.0.1,localhost")
+        .env("no_proxy", "127.0.0.1,localhost")
+        .stdin(std::process::Stdio::piped())
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .spawn()
+        .unwrap();
+    child
+        .stdin
+        .as_mut()
+        .unwrap()
+        .write_all(b"ask --width 2 what color is the button?\nquit\n")
+        .unwrap();
+    let out = child.wait_with_output().unwrap();
+    let stdout = String::from_utf8_lossy(&out.stdout).to_string();
+    assert!(
+        out.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    assert!(
+        stdout.contains("The button is blue."),
+        "ask answer must be printed: {}",
+        stdout
+    );
+    assert!(
+        !stdout.contains("```"),
+        "fences must be stripped: {}",
+        stdout
+    );
+    handle.join().unwrap();
+}
+
+#[test]
+fn explore_ask_requires_vision_engine() {
+    let b64 = png_base64(2, 2);
+    let mut child = bin()
+        .args(["explore", "--engine", "convocr", "--base64", &b64])
+        .stdin(std::process::Stdio::piped())
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .spawn()
+        .unwrap();
+    child
+        .stdin
+        .as_mut()
+        .unwrap()
+        .write_all(b"ask hello\nquit\n")
+        .unwrap();
+    let out = child.wait_with_output().unwrap();
+    assert!(out.status.success(), "session must survive errors");
+    let stderr = String::from_utf8_lossy(&out.stderr).to_string();
+    assert!(
+        stderr.contains("requires the vision engine"),
+        "stderr: {}",
+        stderr
+    );
+}
+
+#[test]
 fn vision_layout_uses_selected_profile() {
     let b64 = png_base64(2, 2);
-    let content = "<div data-x=\"0\" data-y=\"0\" data-w=\"2\" data-h=\"2\" data-color=\"#000000\"></div>";
+    let content =
+        "<div data-x=\"0\" data-y=\"0\" data-w=\"2\" data-h=\"2\" data-color=\"#000000\"></div>";
     let (url, handle) = spawn_mock(chat_response(content));
     let dir = tempfile::tempdir().unwrap();
     let cfg = dir.path().join("config.toml");
@@ -311,7 +719,8 @@ fn vision_layout_uses_selected_profile() {
 #[test]
 fn vision_layout_uses_default_profile() {
     let b64 = png_base64(2, 2);
-    let content = "<div data-x=\"0\" data-y=\"0\" data-w=\"2\" data-h=\"2\" data-color=\"#000000\"></div>";
+    let content =
+        "<div data-x=\"0\" data-y=\"0\" data-w=\"2\" data-h=\"2\" data-color=\"#000000\"></div>";
     let (url, handle) = spawn_mock(chat_response(content));
     let dir = tempfile::tempdir().unwrap();
     let cfg = dir.path().join("config.toml");

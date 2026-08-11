@@ -13,7 +13,10 @@ fn png_base64(pixels: &[[u8; 3]], w: u32, h: u32) -> String {
     let buf = image::RgbImage::from_raw(w, h, flat).unwrap();
     let mut bytes = Vec::new();
     image::DynamicImage::ImageRgb8(buf)
-        .write_to(&mut std::io::Cursor::new(&mut bytes), image::ImageFormat::Png)
+        .write_to(
+            &mut std::io::Cursor::new(&mut bytes),
+            image::ImageFormat::Png,
+        )
         .unwrap();
     STANDARD.encode(&bytes)
 }
@@ -54,12 +57,7 @@ fn run_fails_with(args: &[&str], needle: &str) {
 
 fn rgb2x2() -> String {
     png_base64(
-        &[
-            [255, 0, 0],
-            [0, 255, 0],
-            [0, 0, 255],
-            [255, 255, 255],
-        ],
+        &[[255, 0, 0], [0, 255, 0], [0, 0, 255], [255, 255, 255]],
         2,
         2,
     )
@@ -98,10 +96,7 @@ fn cli_convolve_custom_json_stride() {
         "--stride",
         "2",
     ]);
-    assert_eq!(
-        out,
-        "[[[1,1,1],[3,3,3]],[[9,9,9],[11,11,11]]]\n"
-    );
+    assert_eq!(out, "[[[1,1,1],[3,3,3]],[[9,9,9],[11,11,11]]]\n");
 }
 
 #[test]
@@ -111,7 +106,9 @@ fn cli_convolve_preset_ascii() {
         2,
         2,
     );
-    let out = run_ok(&["convolve", "--base64", &b64, "--preset", "sobel-x", "--format", "ascii"]);
+    let out = run_ok(&[
+        "convolve", "--base64", &b64, "--preset", "sobel-x", "--format", "ascii",
+    ]);
     let valid: Vec<char> = " .:-=+*#%@\n".chars().collect();
     assert!(out.chars().all(|c| valid.contains(&c)));
     assert_eq!(out.len(), 6); // 2 rows of 2 chars plus 2 newlines
@@ -133,7 +130,12 @@ fn cli_stdin() {
         .stdout(Stdio::piped())
         .spawn()
         .unwrap();
-    child.stdin.as_mut().unwrap().write_all(b64.as_bytes()).unwrap();
+    child
+        .stdin
+        .as_mut()
+        .unwrap()
+        .write_all(b64.as_bytes())
+        .unwrap();
     let out = child.wait_with_output().unwrap();
     assert!(out.status.success());
     assert_eq!(
@@ -168,15 +170,27 @@ fn cli_error_paths() {
         &["matrix", "--screen", "--input", "a.png"],
         "conflicting flags",
     );
-    run_fails_with(&["matrix", "--window", "x", "--screen"], "conflicting flags");
+    run_fails_with(
+        &["matrix", "--window", "x", "--screen"],
+        "conflicting flags",
+    );
     // Missing kernel selector.
     run_fails(&["convolve", "--base64", &b64]);
     // Unknown preset.
     run_fails(&["convolve", "--preset", "nope", "--base64", &b64]);
     // Stride zero.
-    run_fails(&["convolve", "--preset", "sobel-x", "--base64", &b64, "--stride", "0"]);
+    run_fails(&[
+        "convolve", "--preset", "sobel-x", "--base64", &b64, "--stride", "0",
+    ]);
     // Grayscale mode with a cross-channel kernel.
-    run_fails(&["convolve", "--preset", "luma", "--grayscale", "--base64", &b64]);
+    run_fails(&[
+        "convolve",
+        "--preset",
+        "luma",
+        "--grayscale",
+        "--base64",
+        &b64,
+    ]);
     // Invalid base64.
     run_fails(&["matrix", "--base64", "not-base64!!!"]);
     // Base64 that is not an image.
@@ -188,7 +202,11 @@ fn cli_error_paths() {
 
 fn half4x4() -> String {
     let row = [[255, 0, 0], [255, 0, 0], [0, 0, 255], [0, 0, 255]];
-    png_base64(&row.iter().cycle().take(16).copied().collect::<Vec<_>>(), 4, 4)
+    png_base64(
+        &row.iter().cycle().take(16).copied().collect::<Vec<_>>(),
+        4,
+        4,
+    )
 }
 
 fn grad16() -> String {
@@ -196,8 +214,21 @@ fn grad16() -> String {
 }
 
 fn half8x8() -> String {
-    let row = [[255, 0, 0], [255, 0, 0], [255, 0, 0], [255, 0, 0], [0, 0, 255], [0, 0, 255], [0, 0, 255], [0, 0, 255]];
-    png_base64(&row.iter().cycle().take(64).copied().collect::<Vec<_>>(), 8, 8)
+    let row = [
+        [255, 0, 0],
+        [255, 0, 0],
+        [255, 0, 0],
+        [255, 0, 0],
+        [0, 0, 255],
+        [0, 0, 255],
+        [0, 0, 255],
+        [0, 0, 255],
+    ];
+    png_base64(
+        &row.iter().cycle().take(64).copied().collect::<Vec<_>>(),
+        8,
+        8,
+    )
 }
 
 #[test]
@@ -253,7 +284,9 @@ fn cli_matrix_stride() {
 #[test]
 fn cli_sample_outputs_original_coordinates() {
     let b64 = grad16();
-    let out = run_ok(&["matrix", "--base64", &b64, "--stride", "2", "--sample", "2,0", "--sample", "0,3"]);
+    let out = run_ok(&[
+        "matrix", "--base64", &b64, "--stride", "2", "--sample", "2,0", "--sample", "0,3",
+    ]);
     assert_eq!(out, "2,0 #030303\n0,3 #090909\n");
 }
 
@@ -265,13 +298,23 @@ fn cli_layout_global_flag_errors() {
     run_fails(&["matrix", "--base64", &b64, "--sample", "99,99"]);
     run_fails(&["layout", "--base64", &b64, "--max-blocks", "0"]);
     run_fails(&["layout", "--base64", &b64, "--max-depth", "0"]);
-    run_fails(&["layout", "--base64", &b64, "--preset", "sobel-x", "--kernel-json", "[[1]]"]);
+    run_fails(&[
+        "layout",
+        "--base64",
+        &b64,
+        "--preset",
+        "sobel-x",
+        "--kernel-json",
+        "[[1]]",
+    ]);
 }
 
 #[test]
 fn cli_layout_with_preset_preprocessing() {
     let b64 = half8x8();
-    let out = run_ok(&["layout", "--base64", &b64, "--preset", "sobel-x", "--format", "json"]);
+    let out = run_ok(&[
+        "layout", "--base64", &b64, "--preset", "sobel-x", "--format", "json",
+    ]);
     let v: serde_json::Value = serde_json::from_str(out.trim()).unwrap();
     assert_eq!(v["width"], 8);
 }

@@ -2,8 +2,8 @@ use anyhow::Result;
 use clap::{Parser, Subcommand};
 
 use arwe::cli::{
-    self, AsciiArgs, ConfigArgs, ConvolveArgs, LayoutArgs, MatrixArgs, OcrArgs, PresetsArgs,
-    WindowsArgs,
+    self, AsciiArgs, ConfigArgs, ConvolveArgs, DescribeArgs, ExploreArgs, LayoutArgs, MatrixArgs,
+    OcrArgs, PresetsArgs, WindowsArgs,
 };
 
 #[derive(Parser)]
@@ -27,8 +27,13 @@ enum Command {
     Convolve(ConvolveArgs),
     /// Analyze UI/page layout: recursive grid decomposition into nested boxes.
     Layout(LayoutArgs),
-    /// Recognize text in the image with local Tesseract.
+    /// Recognize text in the image (vision model or local Tesseract).
     Ocr(OcrArgs),
+    /// Describe the image in natural language (vision model or a deterministic
+    /// digest built from the box tree + OCR).
+    Describe(DescribeArgs),
+    /// Free exploration session: probe the image through primitive commands.
+    Explore(ExploreArgs),
     /// Show the vision config file location and profiles.
     Config(ConfigArgs),
     /// List available preset kernels.
@@ -49,7 +54,19 @@ fn main() -> Result<()> {
                 .build()?;
             rt.block_on(cli::run_layout(&a))
         }
-        Command::Ocr(a) => cli::run_ocr(&a),
+        Command::Ocr(a) => {
+            let rt = tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()?;
+            rt.block_on(cli::run_ocr(&a))
+        }
+        Command::Describe(a) => {
+            let rt = tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()?;
+            rt.block_on(cli::run_describe(&a))
+        }
+        Command::Explore(a) => cli::run_explore(&a),
         Command::Config(a) => cli::run_config(&a),
         Command::Presets(a) => cli::run_presets(&a),
         Command::Windows(a) => cli::run_windows(&a),

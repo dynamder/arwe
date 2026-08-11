@@ -80,8 +80,10 @@ At a glance:
 | `matrix` | Compact RGB/grayscale pixel matrix |
 | `ascii` | ASCII art (luma through a ramp, optional ANSI) |
 | `convolve` | Apply a preset/custom kernel, output matrix or ASCII |
-| `layout` | Box-tree layout analysis (local or vision engine) |
-| `ocr` | Text recognition via local Tesseract |
+| `layout` | Preset: box-tree layout analysis (vision or convocr engine) |
+| `ocr` | Preset: text recognition (vision model or Tesseract) |
+| `describe` | Preset: natural-language description (vision model or deterministic digest) |
+| `explore` | Free exploration session: probe the image via primitive commands |
 | `config` | Show/inspect the vision config file (never prints keys) |
 | `presets` | List preset kernels |
 | `windows` | List windows capturable with `--window` |
@@ -145,6 +147,9 @@ arwe layout --input shot.png --ocr --format json
 # vision model layout (defaults to HTML output)
 OPENAI_API_KEY=sk-... arwe layout --input shot.png --engine vision
 
+# natural-language layout description (vision engine)
+arwe layout --input shot.png --engine vision --format describe
+
 # vision model from a named config profile (see "Vision configuration" below)
 arwe layout --input shot.png --engine vision --profile local-vllm
 
@@ -180,7 +185,8 @@ with connected-component filtering (compact, dense glyph-like regions only).
 
 `--format html` renders the box tree as a nested HTML fragment — the "standard
 template language" for frontend debugging. It is deterministic from the local
-engine, and the vision engine emits the exact same shape.
+engine. The vision engine instead emits a complete static HTML document with
+CSS and a trailing natural-language description (see `--engine vision` below).
 
 ```html
 <div data-x="0" data-y="0" data-w="1795" data-h="1242" data-color="#ffffff" data-direction="column">
@@ -196,7 +202,9 @@ engine, and the vision engine emits the exact same shape.
 Rules:
 
 - Only `<div>` and `<span>` are used: groups and blocks become `<div>`, text
-  nodes become `<span>`. No classes, ids, styles or other attributes.
+  nodes become `<span>`. No classes, ids, styles or other attributes. This
+  section describes the deterministic local engine; the vision engine uses a
+  richer, document-style HTML format.
 - Every element carries `data-x`, `data-y`, `data-w`, `data-h` — integer pixel
   coordinates with origin (0,0) at the top-left of the **original** image —
   and `data-color` with the region's dominant `#rrggbb`.
@@ -214,25 +222,33 @@ exactly, so `json`, `ascii` and `html` output always agree.
 #### `--engine vision`
 
 Sends the processed image (controlled by `--width`; `--crop` applies as usual)
-to an OpenAI-compatible chat-completions vision model and asks for the same
-layout description. Coordinates returned by the model are mapped back to
-original-image pixels exactly, so `json`, `ascii` and `html` output all agree.
+to an OpenAI-compatible chat-completions vision model. For `json` output the
+coordinates returned by the model are mapped back to original-image pixels
+exactly; `html` is a faithful static reproduction sized in original pixels;
+`describe` is a natural-language summary.
 
-- `--format html` (the default for vision) returns a nested HTML fragment whose
-  `<div>`/`<span>` elements carry `data-x`, `data-y`, `data-w`, `data-h`,
-  `data-color` and, on containers, `data-direction` — the same shape the local
-  engine emits, ready to be fed to an agent as a template language for
-  frontend work.
+- `--format html` (the default for vision) returns a complete static HTML
+  document that faithfully reproduces the screenshot: semantic class names, a
+  `<style>` block with CSS (colors, fonts, spacing, borders, sizes), text
+  transcribed character-for-character, and — after the closing `</html>` — a
+  natural-language description of the content. It is a static visual
+  reproduction: no JavaScript and no functional controls; inputs and buttons
+  are represented as styled `<div>`s. Pixel sizes are written in the original
+  image's pixel space. Unreadable text is marked `[unreadable]` instead of
+  being guessed.
 - `--format json` returns the standard layout JSON (vision mode uses the
-  model's JSON mode).
+  model's JSON mode); text nodes carry the recognized `"text"` field.
+- `--format describe` returns a natural-language layout description (page
+  purpose, section hierarchy, notable content, visual style) as plain text;
+  vision engine only.
 - `--model`, `--base-url`, `--api-key` override the selected config profile;
   without a profile they fall back to `OPENAI_MODEL`, `OPENAI_BASE_URL`,
   `OPENAI_API_KEY`, then built-in defaults (`gpt-4o-mini`,
   `https://api.openai.com/v1`).
 - `--profile <name>` selects a named provider from the config file (falling
   back to `ARWE_PROFILE`, then the config's `default_profile`).
-- `--stride` and `--format ascii` are local-engine only; `--ocr` requires
-  `--engine local`.
+- `--stride` and `--format ascii` are convocr-engine only; `--ocr` requires
+  `--engine convocr` (alias `local`).
 
 ### Vision configuration
 
@@ -278,8 +294,14 @@ reported path using the template above.
 
 ### `ocr`
 
-Recognize text with local Tesseract. The OCR runs on the processed image
-(`--crop`/`--width` apply), boxes are reported in original pixel coordinates.
+Recognize text in the image. Two engines:
+
+- `--engine convocr` (default; alias `local`): local Tesseract. The OCR runs
+  on the processed image (`--crop`/`--width` apply), boxes are reported in
+  original pixel coordinates.
+- `--engine vision`: the vision model transcribes all visible text directly
+  (character-for-character; `[unreadable]` marks unreadable text) and returns
+  the same JSON/plain shapes — vision lines have no `conf` field.
 
 ```bash
 # plain text, one line per recognized line
@@ -290,6 +312,9 @@ arwe ocr --input shot.png --format json
 
 # Chinese + English, custom segmentation mode, cropped region
 arwe ocr --input shot.png --lang chi_sim+eng --psm 6 --crop 10,20,400,120
+
+# vision-model OCR (requires a configured provider)
+OPENAI_API_KEY=sk-... arwe ocr --input shot.png --engine vision --format json
 ```
 
 JSON shape:
@@ -307,6 +332,52 @@ missing, the CLI fails with a helpful message instead of a cryptic error.
 For layout debugging, `arwe layout --ocr` runs OCR on the original (cropped)
 image — before resize/stride — and attaches the recognized text to the matching
 text nodes.
+
+### `describe`
+
+Describe the image in natural language. Two engines:
+
+- `--engine vision` (default): the vision model writes a natural-language
+  layout description (purpose, sections, content, visual style).
+- `--engine convocr` (alias `local`): a deterministic digest assembled from
+  the local box tree + OCR text (section counts, hierarchy, recognized text).
+
+```bash
+# vision-model description (requires a configured provider)
+arwe describe --input shot.png
+
+# offline digest
+arwe describe --input shot.png --engine convocr
+```
+
+### `explore`
+
+Free exploration session: load the image once and probe it through primitive
+commands. Read commands from stdin (interactive when stdin is a TTY; pipe a
+batch otherwise); stdout carries only results, the prompt and errors go to
+stderr.
+
+```bash
+arwe explore --input shot.png --engine vision
+```
+
+Primitives:
+
+```text
+pixel X,Y                                      sample a pixel color
+region [X,Y,W,H] [--width N] [--ascii|--matrix]  view/set the current region
+zoom X,Y,W,H                                   set the current region
+reset                                          back to the full image
+kernel <preset|json> [--stride N] [--ascii|--matrix]
+ocr [--lang L] [--psm N]                       Tesseract on the current region
+describe [--engine vision|convocr] [--width N]
+ask [--engine vision] [--width N] <prompt>     vision model with a custom prompt
+help | quit
+```
+
+`ask` sends the current region to the vision model with the agent-specified
+prompt verbatim (a minimal system message only); it requires the vision engine.
+All primitives operate on the current region (initially the full image).
 
 ### `presets`
 
@@ -352,8 +423,12 @@ intentional: the model controls the exact math.
 - Matrix (default): no whitespace, `[[[r,g,b],...],...]` for RGB and
   `[[v,...],...]` for single-channel, to keep token counts low.
 - ASCII: one character per pixel, luma-mapped through the ramp, no resizing.
-- HTML: nested `<div>`/`<span>` skeleton with `data-x/y/w/h/color` (+
-  `data-direction` on containers) for the layout command.
+- HTML: the local engine emits a nested `<div>`/`<span>` skeleton with
+  `data-x/y/w/h/color` (+ `data-direction` on containers); the vision engine
+  emits a complete static HTML document with CSS and a trailing
+  natural-language description.
+- Describe: a natural-language layout description (`arwe layout --engine
+  vision --format describe`).
 
 ## Environment variables
 

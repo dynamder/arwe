@@ -326,11 +326,7 @@ mod tests {
 
     #[test]
     fn sort_and_index_orders_case_insensitively() {
-        let infos = sort_and_index(vec![
-            win(0, "zeta"),
-            win(1, "Alpha"),
-            win(2, "alpha"),
-        ]);
+        let infos = sort_and_index(vec![win(0, "zeta"), win(1, "Alpha"), win(2, "alpha")]);
         assert_eq!(infos[0].title, "Alpha");
         assert_eq!(infos[1].title, "alpha");
         assert_eq!(infos[2].title, "zeta");

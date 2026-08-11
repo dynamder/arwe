@@ -1,0 +1,14 @@
+name = "arwe"
+version = "0.1.0"
+
+# 在临时副本的源码根目录按序执行（Windows 用 cmd /C）
+build = ["cargo build --release"]
+
+[install]
+files = [
+  { from = "target/release/arwe.exe" },
+]
+
+[[bins]]
+name = "arwe"
+target = "arwe.exe"

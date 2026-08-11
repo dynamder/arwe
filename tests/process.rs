@@ -11,16 +11,52 @@ fn grad4x4() -> RgbImage {
 
 #[test]
 fn crop_is_exact() {
-    let p = resize::process(&grad4x4(), Some(CropRect { x: 1, y: 1, w: 2, h: 2 }), None, 1).unwrap();
+    let p = resize::process(
+        &grad4x4(),
+        Some(CropRect {
+            x: 1,
+            y: 1,
+            w: 2,
+            h: 2,
+        }),
+        None,
+        1,
+    )
+    .unwrap();
     assert_eq!(p.image.width, 2);
     assert_eq!(p.image.height, 2);
-    assert_eq!(p.image.pixels, vec![[6, 6, 6], [7, 7, 7], [10, 10, 10], [11, 11, 11]]);
+    assert_eq!(
+        p.image.pixels,
+        vec![[6, 6, 6], [7, 7, 7], [10, 10, 10], [11, 11, 11]]
+    );
 }
 
 #[test]
 fn crop_out_of_bounds_is_error() {
-    assert!(resize::process(&grad4x4(), Some(CropRect { x: 3, y: 3, w: 2, h: 2 }), None, 1).is_err());
-    assert!(resize::process(&grad4x4(), Some(CropRect { x: 0, y: 0, w: 0, h: 4 }), None, 1).is_err());
+    assert!(resize::process(
+        &grad4x4(),
+        Some(CropRect {
+            x: 3,
+            y: 3,
+            w: 2,
+            h: 2
+        }),
+        None,
+        1
+    )
+    .is_err());
+    assert!(resize::process(
+        &grad4x4(),
+        Some(CropRect {
+            x: 0,
+            y: 0,
+            w: 0,
+            h: 4
+        }),
+        None,
+        1
+    )
+    .is_err());
 }
 
 #[test]
@@ -38,7 +74,10 @@ fn resize_uniform_blocks_are_exact() {
     let p = resize::process(&im, None, Some(2), 1).unwrap();
     assert_eq!(p.image.width, 2);
     assert_eq!(p.image.height, 2);
-    assert_eq!(p.image.pixels, vec![[255, 0, 0], [0, 0, 255], [255, 0, 0], [0, 0, 255]]);
+    assert_eq!(
+        p.image.pixels,
+        vec![[255, 0, 0], [0, 0, 255], [255, 0, 0], [0, 0, 255]]
+    );
 }
 
 #[test]
@@ -46,14 +85,20 @@ fn resize_gradient_is_area_average() {
     let p = resize::process(&grad4x4(), None, Some(2), 1).unwrap();
     assert_eq!(p.image.width, 2);
     assert_eq!(p.image.height, 2);
-    assert_eq!(p.image.pixels, vec![[4, 4, 4], [6, 6, 6], [12, 12, 12], [14, 14, 14]]);
+    assert_eq!(
+        p.image.pixels,
+        vec![[4, 4, 4], [6, 6, 6], [12, 12, 12], [14, 14, 14]]
+    );
 }
 
 #[test]
 fn subsample_takes_every_nth() {
     let p = resize::process(&grad4x4(), None, None, 2).unwrap();
     assert_eq!((p.image.width, p.image.height), (2, 2));
-    assert_eq!(p.image.pixels, vec![[1, 1, 1], [3, 3, 3], [9, 9, 9], [11, 11, 11]]);
+    assert_eq!(
+        p.image.pixels,
+        vec![[1, 1, 1], [3, 3, 3], [9, 9, 9], [11, 11, 11]]
+    );
 }
 
 #[test]
@@ -69,7 +114,18 @@ fn sample_maps_original_coordinates() {
 
 #[test]
 fn sample_outside_crop_is_none() {
-    let p = resize::process(&grad4x4(), Some(CropRect { x: 1, y: 1, w: 2, h: 2 }), None, 1).unwrap();
+    let p = resize::process(
+        &grad4x4(),
+        Some(CropRect {
+            x: 1,
+            y: 1,
+            w: 2,
+            h: 2,
+        }),
+        None,
+        1,
+    )
+    .unwrap();
     assert_eq!(p.to_processed(0, 0), None);
     assert_eq!(p.to_processed(1, 1), Some((0, 0)));
     assert_eq!(p.to_original_rect(0, 0, 2, 2), (1, 1, 2, 2));
@@ -93,11 +149,56 @@ fn parse_point_validation() {
 #[test]
 fn crop_image_guards() {
     let im = grad4x4();
-    assert!(resize::crop_image(&im, CropRect { x: 0, y: 0, w: 0, h: 4 }).is_err());
-    assert!(resize::crop_image(&im, CropRect { x: 0, y: 0, w: 4, h: 0 }).is_err());
-    assert!(resize::crop_image(&im, CropRect { x: 1, y: 0, w: 4, h: 1 }).is_err());
-    assert!(resize::crop_image(&im, CropRect { x: 0, y: 1, w: 1, h: 4 }).is_err());
-    assert!(resize::crop_image(&im, CropRect { x: 1, y: 1, w: 2, h: 2 }).is_ok());
+    assert!(resize::crop_image(
+        &im,
+        CropRect {
+            x: 0,
+            y: 0,
+            w: 0,
+            h: 4
+        }
+    )
+    .is_err());
+    assert!(resize::crop_image(
+        &im,
+        CropRect {
+            x: 0,
+            y: 0,
+            w: 4,
+            h: 0
+        }
+    )
+    .is_err());
+    assert!(resize::crop_image(
+        &im,
+        CropRect {
+            x: 1,
+            y: 0,
+            w: 4,
+            h: 1
+        }
+    )
+    .is_err());
+    assert!(resize::crop_image(
+        &im,
+        CropRect {
+            x: 0,
+            y: 1,
+            w: 1,
+            h: 4
+        }
+    )
+    .is_err());
+    assert!(resize::crop_image(
+        &im,
+        CropRect {
+            x: 1,
+            y: 1,
+            w: 2,
+            h: 2
+        }
+    )
+    .is_ok());
 }
 
 #[test]
@@ -106,7 +207,12 @@ fn mapping_with_crop_and_scale() {
     let im = img(10, 10, (1..=100u8).map(|v| [v, v, v]).collect());
     let p = resize::process(
         &im,
-        Some(CropRect { x: 2, y: 3, w: 6, h: 6 }),
+        Some(CropRect {
+            x: 2,
+            y: 3,
+            w: 6,
+            h: 6,
+        }),
         Some(3),
         1,
     )
@@ -135,6 +241,16 @@ fn subsample_odd_dimensions() {
     assert_eq!((p.image.width, p.image.height), (3, 3));
     assert_eq!(
         p.image.pixels,
-        vec![[1, 1, 1], [3, 3, 3], [5, 5, 5], [11, 11, 11], [13, 13, 13], [15, 15, 15], [21, 21, 21], [23, 23, 23], [25, 25, 25]]
+        vec![
+            [1, 1, 1],
+            [3, 3, 3],
+            [5, 5, 5],
+            [11, 11, 11],
+            [13, 13, 13],
+            [15, 15, 15],
+            [21, 21, 21],
+            [23, 23, 23],
+            [25, 25, 25]
+        ]
     );
 }

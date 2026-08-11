@@ -42,9 +42,7 @@ pub const PRESETS: &[Preset] = &[
         channels: 1,
         height: 3,
         width: 3,
-        values: &[
-            1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0,
-        ],
+        values: &[1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0],
     },
     Preset {
         name: "gaussian3",
@@ -61,8 +59,8 @@ pub const PRESETS: &[Preset] = &[
         height: 5,
         width: 5,
         values: &[
-            1.0, 4.0, 6.0, 4.0, 1.0, 4.0, 16.0, 24.0, 16.0, 4.0, 6.0, 24.0, 36.0, 24.0, 6.0,
-            4.0, 16.0, 24.0, 16.0, 4.0, 1.0, 4.0, 6.0, 4.0, 1.0,
+            1.0, 4.0, 6.0, 4.0, 1.0, 4.0, 16.0, 24.0, 16.0, 4.0, 6.0, 24.0, 36.0, 24.0, 6.0, 4.0,
+            16.0, 24.0, 16.0, 4.0, 1.0, 4.0, 6.0, 4.0, 1.0,
         ],
     },
     Preset {
@@ -103,9 +101,7 @@ pub const PRESETS: &[Preset] = &[
         channels: 1,
         height: 3,
         width: 3,
-        values: &[
-            -1.0, -1.0, -1.0, -1.0, 8.0, -1.0, -1.0, -1.0, -1.0,
-        ],
+        values: &[-1.0, -1.0, -1.0, -1.0, 8.0, -1.0, -1.0, -1.0, -1.0],
     },
     Preset {
         name: "emboss",
@@ -204,8 +200,7 @@ fn kernel_json_value(k: &Preset) -> Value {
 /// - 3D array of channel planes: `[[[r...]],[[g...]],[[b...]]]` -> cross-channel.
 /// - Object with a `"kernel"` field containing either of the above.
 pub fn from_json(s: &str) -> Result<Kernel> {
-    let v: Value =
-        serde_json::from_str(s).with_context(|| "kernel JSON failed to parse")?;
+    let v: Value = serde_json::from_str(s).with_context(|| "kernel JSON failed to parse")?;
     let v = match v {
         Value::Object(map) => match map.get("kernel") {
             Some(k) => k.clone(),

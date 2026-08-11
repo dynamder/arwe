@@ -38,10 +38,26 @@ fn two_horizontal_bands() {
     let root = &r.root;
     assert_eq!(is_group(root), Some(Direction::Column));
     assert_eq!(root.children.len(), 2);
-    assert_eq!((root.children[0].x, root.children[0].y, root.children[0].w, root.children[0].h), (0, 0, 8, 4));
+    assert_eq!(
+        (
+            root.children[0].x,
+            root.children[0].y,
+            root.children[0].w,
+            root.children[0].h
+        ),
+        (0, 0, 8, 4)
+    );
     assert_eq!(root.children[0].color, [0, 0, 0]);
     assert!(is_block(&root.children[0]));
-    assert_eq!((root.children[1].x, root.children[1].y, root.children[1].w, root.children[1].h), (0, 4, 8, 4));
+    assert_eq!(
+        (
+            root.children[1].x,
+            root.children[1].y,
+            root.children[1].w,
+            root.children[1].h
+        ),
+        (0, 4, 8, 4)
+    );
     assert_eq!(root.children[1].color, [255, 255, 255]);
 }
 
@@ -57,9 +73,25 @@ fn two_vertical_columns() {
     let root = &r.root;
     assert_eq!(is_group(root), Some(Direction::Row));
     assert_eq!(root.children.len(), 2);
-    assert_eq!((root.children[0].x, root.children[0].y, root.children[0].w, root.children[0].h), (0, 0, 4, 8));
+    assert_eq!(
+        (
+            root.children[0].x,
+            root.children[0].y,
+            root.children[0].w,
+            root.children[0].h
+        ),
+        (0, 0, 4, 8)
+    );
     assert_eq!(root.children[0].color, [0, 0, 0]);
-    assert_eq!((root.children[1].x, root.children[1].y, root.children[1].w, root.children[1].h), (4, 0, 4, 8));
+    assert_eq!(
+        (
+            root.children[1].x,
+            root.children[1].y,
+            root.children[1].w,
+            root.children[1].h
+        ),
+        (4, 0, 4, 8)
+    );
     assert_eq!(root.children[1].color, [0, 0, 255]);
 }
 
@@ -68,7 +100,11 @@ fn nested_header_then_sidebar_content() {
     let mut pixels = vec![[0, 0, 0]; 48 * 48];
     for y in 16..48 {
         for x in 0..48 {
-            pixels[y * 48 + x] = if x < 16 { [255, 255, 255] } else { [200, 200, 200] };
+            pixels[y * 48 + x] = if x < 16 {
+                [255, 255, 255]
+            } else {
+                [200, 200, 200]
+            };
         }
     }
     let r = analyze(&img(48, 48, pixels));
@@ -77,16 +113,40 @@ fn nested_header_then_sidebar_content() {
     assert_eq!(root.children.len(), 2);
     // Header block.
     assert!(is_block(&root.children[0]));
-    assert_eq!((root.children[0].x, root.children[0].y, root.children[0].w, root.children[0].h), (0, 0, 48, 16));
+    assert_eq!(
+        (
+            root.children[0].x,
+            root.children[0].y,
+            root.children[0].w,
+            root.children[0].h
+        ),
+        (0, 0, 48, 16)
+    );
     assert_eq!(root.children[0].color, [0, 0, 0]);
     // Body group: sidebar + content.
     let body = &root.children[1];
     assert_eq!(is_group(body), Some(Direction::Row));
     assert_eq!(body.children.len(), 2);
     assert_eq!(body.children[0].color, [255, 255, 255]);
-    assert_eq!((body.children[0].x, body.children[0].y, body.children[0].w, body.children[0].h), (0, 16, 16, 32));
+    assert_eq!(
+        (
+            body.children[0].x,
+            body.children[0].y,
+            body.children[0].w,
+            body.children[0].h
+        ),
+        (0, 16, 16, 32)
+    );
     assert_eq!(body.children[1].color, [200, 200, 200]);
-    assert_eq!((body.children[1].x, body.children[1].y, body.children[1].w, body.children[1].h), (16, 16, 32, 32));
+    assert_eq!(
+        (
+            body.children[1].x,
+            body.children[1].y,
+            body.children[1].w,
+            body.children[1].h
+        ),
+        (16, 16, 32, 32)
+    );
 }
 
 #[test]
@@ -128,7 +188,11 @@ fn text_band_is_marked() {
     assert!(t.density.unwrap() > 0.0);
     // The containing root is the uniform white background.
     assert_eq!(r.root.color, [255, 255, 255]);
-    assert!(r.root.children.iter().any(|c| matches!(c.kind, NodeKind::Text)));
+    assert!(r
+        .root
+        .children
+        .iter()
+        .any(|c| matches!(c.kind, NodeKind::Text)));
 }
 
 #[test]
@@ -276,9 +340,19 @@ fn text_box_inside_block_is_attached_there() {
     let r = analyze(&img(40, 40, pixels));
     let root = &r.root;
     assert!(matches!(root.kind, NodeKind::Group { .. }));
-    assert!(!root.children.iter().any(|c| matches!(c.kind, NodeKind::Text)));
-    let bottom = root.children.iter().find(|c| c.y >= 16).expect("bottom block");
-    assert!(bottom.children.iter().any(|c| matches!(c.kind, NodeKind::Text)));
+    assert!(!root
+        .children
+        .iter()
+        .any(|c| matches!(c.kind, NodeKind::Text)));
+    let bottom = root
+        .children
+        .iter()
+        .find(|c| c.y >= 16)
+        .expect("bottom block");
+    assert!(bottom
+        .children
+        .iter()
+        .any(|c| matches!(c.kind, NodeKind::Text)));
 }
 
 #[test]
@@ -298,7 +372,10 @@ fn text_box_straddling_split_attaches_to_group() {
     }
     let r = analyze(&img(10, 10, pixels));
     let root = &r.root;
-    assert!(root.children.iter().any(|c| matches!(c.kind, NodeKind::Text)));
+    assert!(root
+        .children
+        .iter()
+        .any(|c| matches!(c.kind, NodeKind::Text)));
 }
 
 #[test]
@@ -320,11 +397,7 @@ fn three_column_nested_split_uses_offsets() {
     let root = &r.root;
     assert!(matches!(root.kind, NodeKind::Group { .. }));
     // Body group starts at y=4 and splits into columns.
-    let body = root
-        .children
-        .iter()
-        .find(|c| c.y >= 4)
-        .expect("body group");
+    let body = root.children.iter().find(|c| c.y >= 4).expect("body group");
     assert!(matches!(body.kind, NodeKind::Group { .. }));
     let inner = body
         .children
@@ -341,7 +414,12 @@ fn three_column_nested_split_uses_offsets() {
 fn budget_split_structure_priority() {
     // Four horizontal bands; with a tiny budget the structure side truncates.
     let mut pixels = vec![[0, 0, 0]; 16 * 16];
-    let colors = [[255, 255, 255], [200, 200, 200], [150, 150, 150], [100, 100, 100]];
+    let colors = [
+        [255, 255, 255],
+        [200, 200, 200],
+        [150, 150, 150],
+        [100, 100, 100],
+    ];
     for (band, c) in colors.iter().enumerate() {
         for y in band * 4..(band + 1) * 4 {
             for x in 0..16 {

@@ -67,9 +67,7 @@ fn decode_image(bytes: &[u8]) -> Result<RgbImage> {
     RgbImage::new(width, height, pixels)
 }
 
-pub fn require_exactly_one<'a>(
-    choices: impl IntoIterator<Item = (&'a str, bool)>,
-) -> Result<()> {
+pub fn require_exactly_one<'a>(choices: impl IntoIterator<Item = (&'a str, bool)>) -> Result<()> {
     let choices: Vec<(&str, bool)> = choices.into_iter().collect();
     let chosen: Vec<&str> = choices
         .iter()

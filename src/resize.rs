@@ -26,6 +26,13 @@ pub struct Processed {
 }
 
 impl Processed {
+    /// Scale factors mapping processed-image pixels back to original-image
+    /// pixels (x and y are equal when aspect ratio is preserved). Used to
+    /// rescale style lengths that the vision model wrote in the image it saw.
+    pub fn scale_xy(&self) -> (f64, f64) {
+        (self.scale_x, self.scale_y)
+    }
+
     pub fn to_original(&self, x: usize, y: usize) -> (usize, usize) {
         let ox = (x as f64 * self.scale_x).round() as usize + self.offset_x;
         let oy = (y as f64 * self.scale_y).round() as usize + self.offset_y;

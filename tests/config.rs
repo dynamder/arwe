@@ -55,7 +55,11 @@ fn config_list_shows_profiles_but_never_keys() {
     let names: Vec<&str> = stdout.lines().collect();
     assert!(names.contains(&"openai"), "stdout: {}", stdout);
     assert!(names.contains(&"local"), "stdout: {}", stdout);
-    assert!(!stdout.contains("sk-super-secret"), "keys leaked: {}", stdout);
+    assert!(
+        !stdout.contains("sk-super-secret"),
+        "keys leaked: {}",
+        stdout
+    );
 }
 
 #[test]
@@ -99,7 +103,15 @@ fn unknown_profile_fails_with_available_names() {
     std::fs::write(&cfg, config_toml()).unwrap();
     let b64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==";
     let out = bin()
-        .args(["layout", "--engine", "vision", "--profile", "nope", "--base64", b64])
+        .args([
+            "layout",
+            "--engine",
+            "vision",
+            "--profile",
+            "nope",
+            "--base64",
+            b64,
+        ])
         .env("ARWE_CONFIG", &cfg)
         .output()
         .unwrap();

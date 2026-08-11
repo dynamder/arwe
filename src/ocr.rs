@@ -39,7 +39,8 @@ pub fn recognize(img: &RgbImage, lang: &str, psm: u32) -> Result<Vec<OcrLine>> {
         .suffix(".png")
         .tempfile()
         .context("failed to create temp file for OCR input")?;
-    tmp.write_all(&png).context("failed to write OCR temp image")?;
+    tmp.write_all(&png)
+        .context("failed to write OCR temp image")?;
     tmp.flush().context("failed to flush OCR temp image")?;
     let input = tmp.path().to_path_buf();
 
@@ -81,15 +82,14 @@ pub fn recognize(img: &RgbImage, lang: &str, psm: u32) -> Result<Vec<OcrLine>> {
 
 fn png_bytes(img: &RgbImage) -> Result<Vec<u8>> {
     let flat: Vec<u8> = img.pixels.iter().flatten().copied().collect();
-    let buf = image::RgbImage::from_raw(
-        img.width as u32,
-        img.height as u32,
-        flat,
-    )
-    .context("image dimensions do not match pixel count")?;
+    let buf = image::RgbImage::from_raw(img.width as u32, img.height as u32, flat)
+        .context("image dimensions do not match pixel count")?;
     let mut bytes = Vec::new();
     image::DynamicImage::ImageRgb8(buf)
-        .write_to(&mut std::io::Cursor::new(&mut bytes), image::ImageFormat::Png)
+        .write_to(
+            &mut std::io::Cursor::new(&mut bytes),
+            image::ImageFormat::Png,
+        )
         .context("failed to encode image as PNG")?;
     Ok(bytes)
 }
@@ -244,6 +244,29 @@ pub fn render_json(proc: &Processed, lines: &[OcrLine]) -> String {
     serde_json::to_string(&Value::Object(obj)).expect("serializing OCR output cannot fail")
 }
 
+/// JSON output for vision OCR: same shape as [`render_json`] but without the
+/// `conf` field, since vision models do not report confidence.
+pub fn render_json_vision(proc: &Processed, lines: &[OcrLine]) -> String {
+    let mut obj = Map::new();
+    obj.insert("width".into(), Value::from(proc.orig_width));
+    obj.insert("height".into(), Value::from(proc.orig_height));
+    let arr: Vec<Value> = lines
+        .iter()
+        .map(|l| {
+            let (x, y, w, h) = proc.to_original_rect(l.x, l.y, l.w, l.h);
+            let mut o = Map::new();
+            o.insert("x".into(), Value::from(x));
+            o.insert("y".into(), Value::from(y));
+            o.insert("w".into(), Value::from(w));
+            o.insert("h".into(), Value::from(h));
+            o.insert("text".into(), Value::String(l.text.trim().to_string()));
+            Value::Object(o)
+        })
+        .collect();
+    obj.insert("lines".into(), Value::Array(arr));
+    serde_json::to_string(&Value::Object(obj)).expect("serializing OCR output cannot fail")
+}
+
 /// Attach OCR lines to the layout tree. Each line is matched to the smallest
 /// node containing its center: text nodes accumulate their text, other nodes
 /// get a new text child so nothing the OCR engine found is dropped.
@@ -348,6 +371,26 @@ mod unit {
         assert_eq!(arr[0]["h"], 60);
         assert_eq!(arr[1]["text"], "Second line");
         assert!((arr[0]["conf"].as_f64().unwrap() - 87.8).abs() < 1e-6);
+    }
+
+    #[test]
+    fn vision_json_omits_conf() {
+        let im = crate::rgb::RgbImage::new(400, 300, vec![[255u8, 255, 255]; 400 * 300]).unwrap();
+        let proc = crate::resize::process(&im, None, Some(200), 1).unwrap();
+        let lines = vec![OcrLine {
+            x: 5,
+            y: 10,
+            w: 100,
+            h: 20,
+            text: "Hi".to_string(),
+            conf: 0.0,
+        }];
+        let v: Value = serde_json::from_str(&render_json_vision(&proc, &lines)).unwrap();
+        assert_eq!(v["width"], 400);
+        assert_eq!(v["lines"][0]["x"], 10);
+        assert_eq!(v["lines"][0]["w"], 200);
+        assert_eq!(v["lines"][0]["text"], "Hi");
+        assert!(v["lines"][0].get("conf").is_none());
     }
 
     #[test]

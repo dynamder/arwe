@@ -33,7 +33,11 @@ fn rgb(data: &ImageData) -> &[[u8; 3]] {
 
 #[test]
 fn identity_keeps_pixels() {
-    let im = img(2, 2, vec![[10, 20, 30], [40, 50, 60], [70, 80, 90], [100, 110, 120]]);
+    let im = img(
+        2,
+        2,
+        vec![[10, 20, 30], [40, 50, 60], [70, 80, 90], [100, 110, 120]],
+    );
     let out = conv::convolve_rgb(&im, &kernel("identity"), 1).unwrap();
     assert_eq!(out.width, 2);
     assert_eq!(out.height, 2);
@@ -140,7 +144,11 @@ fn plain_text_kernel_file_parses() {
 
 #[test]
 fn matrix_output_is_compact() {
-    let im = img(2, 2, vec![[255, 0, 0], [0, 255, 0], [0, 0, 255], [255, 255, 255]]);
+    let im = img(
+        2,
+        2,
+        vec![[255, 0, 0], [0, 255, 0], [0, 0, 255], [255, 255, 255]],
+    );
     let s = output::matrix(&im.rgb_data());
     assert_eq!(s, "[[[255,0,0],[0,255,0]],[[0,0,255],[255,255,255]]]");
     assert!(!s.contains(' '));
@@ -224,12 +232,8 @@ fn pixel_bounds() {
 
 #[test]
 fn base64_png_round_trip() {
-    let buf = image::RgbImage::from_raw(
-        2,
-        2,
-        vec![255, 0, 0, 0, 255, 0, 0, 0, 255, 255, 255, 255],
-    )
-    .unwrap();
+    let buf = image::RgbImage::from_raw(2, 2, vec![255, 0, 0, 0, 255, 0, 0, 0, 255, 255, 255, 255])
+        .unwrap();
     let mut bytes = Vec::new();
     image::DynamicImage::ImageRgb8(buf)
         .write_to(&mut Cursor::new(&mut bytes), image::ImageFormat::Png)
@@ -277,15 +281,8 @@ fn even_kernel_left_padding() {
 #[test]
 fn cross_channel_even_kernel() {
     // 2x2 cross-channel kernel, only the R plane participates.
-    let k = kernels::from_json(
-        "[[[1,1],[1,1]],[[0,0],[0,0]],[[0,0],[0,0]]]",
-    )
-    .unwrap();
-    let im = img(
-        2,
-        2,
-        vec![[10, 0, 0], [20, 0, 0], [30, 0, 0], [40, 0, 0]],
-    );
+    let k = kernels::from_json("[[[1,1],[1,1]],[[0,0],[0,0]],[[0,0],[0,0]]]").unwrap();
+    let im = img(2, 2, vec![[10, 0, 0], [20, 0, 0], [30, 0, 0], [40, 0, 0]]);
     let out = conv::convolve_cross(&im, &k, 1).unwrap();
     assert_eq!(mono(&out), &[100, 60, 70, 40]);
 }
@@ -293,15 +290,8 @@ fn cross_channel_even_kernel() {
 #[test]
 fn cross_channel_multi_channel_kernel() {
     // Values in all three channels so channel-plane indexing matters.
-    let k = kernels::from_json(
-        "[[[1,0],[0,0]],[[0,0],[0,1]],[[0,0],[0,0]]]",
-    )
-    .unwrap();
-    let im = img(
-        2,
-        2,
-        vec![[10, 1, 0], [20, 2, 0], [30, 3, 0], [40, 4, 0]],
-    );
+    let k = kernels::from_json("[[[1,0],[0,0]],[[0,0],[0,1]],[[0,0],[0,0]]]").unwrap();
+    let im = img(2, 2, vec![[10, 1, 0], [20, 2, 0], [30, 3, 0], [40, 4, 0]]);
     let out = conv::convolve_cross(&im, &k, 1).unwrap();
     assert_eq!(mono(&out), &[14, 20, 30, 40]);
 }
@@ -389,9 +379,9 @@ fn preset_values_are_exact() {
         (
             "sobel-x-rgb",
             vec![
-                -0.299, 0.0, 0.299, -0.598, 0.0, 0.598, -0.299, 0.0, 0.299, -0.587, 0.0,
-                0.587, -1.174, 0.0, 1.174, -0.587, 0.0, 0.587, -0.114, 0.0, 0.114, -0.228,
-                0.0, 0.228, -0.114, 0.0, 0.114,
+                -0.299, 0.0, 0.299, -0.598, 0.0, 0.598, -0.299, 0.0, 0.299, -0.587, 0.0, 0.587,
+                -1.174, 0.0, 1.174, -0.587, 0.0, 0.587, -0.114, 0.0, 0.114, -0.228, 0.0, 0.228,
+                -0.114, 0.0, 0.114,
             ],
         ),
     ];

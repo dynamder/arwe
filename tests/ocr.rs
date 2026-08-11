@@ -12,7 +12,10 @@ fn png_base64(pixels: &[[u8; 3]], w: u32, h: u32) -> String {
     let buf = image::RgbImage::from_raw(w, h, flat).unwrap();
     let mut bytes = Vec::new();
     image::DynamicImage::ImageRgb8(buf)
-        .write_to(&mut std::io::Cursor::new(&mut bytes), image::ImageFormat::Png)
+        .write_to(
+            &mut std::io::Cursor::new(&mut bytes),
+            image::ImageFormat::Png,
+        )
         .unwrap();
     STANDARD.encode(&bytes)
 }
@@ -21,7 +24,8 @@ fn white(w: u32, h: u32) -> String {
     png_base64(&vec![[255u8, 255, 255]; (w * h) as usize], w, h)
 }
 
-const TSV: &str = "level\tpage_num\tblock_num\tpar_num\tline_num\tword_num\tleft\ttop\twidth\theight\tconf\ttext
+const TSV: &str =
+    "level\tpage_num\tblock_num\tpar_num\tline_num\tword_num\tleft\ttop\twidth\theight\tconf\ttext
 5\t1\t1\t1\t1\t1\t10\t20\t100\t30\t90.5\tHello
 5\t1\t1\t1\t1\t2\t120\t20\t80\t30\t85.2\tworld
 5\t1\t1\t2\t1\t1\t5\t80\t200\t25\t95\tSecond
