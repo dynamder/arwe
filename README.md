@@ -1,5 +1,7 @@
 # arwe
 
+This project is archived because multimodal ability has been integrated into the deepseek itself.
+
 [![CI](https://github.com/dynamder/arwe/actions/workflows/ci.yml/badge.svg)](https://github.com/dynamder/arwe/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
